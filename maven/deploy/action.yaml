@@ -1,0 +1,15 @@
+name: 'Maven Deploy'
+description: 'Runs Maven with a deploy goal'
+inputs:
+  token:
+    description: 'GITHUB_TOKEN or a `repo` scoped Personal Access Token (PAT)'
+    default: ${{ github.token }}
+runs:
+  using: composite
+  steps:
+    - name: Raise Release PR
+      shell: bash    
+      env:
+        GITHUB_TOKEN: ${{ inputs.token }}
+      run: |
+        mvn --batch-mode deploy
