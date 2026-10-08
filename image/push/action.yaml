@@ -1,0 +1,34 @@
+name: 'Push Image'
+description: 'Pushes a locally built <image>:<version> to ghcr.io as <version> and latest, linked to the repo that built it'
+inputs:
+  image:
+    description: 'The image built, e.g. tn-user-service'
+    required: true
+  version:
+    description: 'Its tag, the version released'
+    required: true
+  token:
+    description: 'GITHUB_TOKEN, with packages: write'
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Push ${{ inputs.image }}:${{ inputs.version }}
+      shell: bash
+      env:
+        IMAGE: ${{ inputs.image }}
+        TOKEN: ${{ inputs.token }}
+        VERSION: ${{ inputs.version }}
+      run: |
+        echo "${TOKEN}" | docker login ghcr.io --username "${{ github.actor }}" --password-stdin
+
+        # the source label links the package to this repo, which is what lets this repo's GITHUB_TOKEN push to it
+        target="ghcr.io/${{ github.repository_owner }}/${IMAGE}"
+        echo "FROM ${IMAGE}:${VERSION}" | docker build --quiet \
+          --label "org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}" \
+          --label "org.opencontainers.image.version=${VERSION}" \
+          --tag "${target}:${VERSION}" --tag "${target}:latest" -
+
+        docker push "${target}:${VERSION}"
+        docker push "${target}:latest"
+        echo "::notice::Pushed ${target}:${VERSION}"

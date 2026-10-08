@@ -97,17 +97,11 @@ jobs:
 
       - name: Push image
         if: steps.release.outputs.pushed == 'true' && steps.project.outputs.image != ''
-        env:
-          IMAGE: ${{ steps.project.outputs.image }}
-          VERSION: ${{ steps.next.outputs.version }}
-        run: |
-          echo "${{ github.token }}" | docker login ghcr.io --username "${{ github.actor }}" --password-stdin
-          for tag in "${VERSION}" latest
-          do
-            docker tag "${IMAGE}:${VERSION}" "ghcr.io/${{ github.repository_owner }}/${IMAGE}:${tag}"
-            docker push "ghcr.io/${{ github.repository_owner }}/${IMAGE}:${tag}"
-          done
-          echo "::notice::Pushed ghcr.io/${{ github.repository_owner }}/${IMAGE}:${VERSION}"
+        uses: nickersan/actions/image/push@main
+        with:
+          image: ${{ steps.project.outputs.image }}
+          version: ${{ steps.next.outputs.version }}
+          token: ${{ github.token }}
 
       - name: Create GitHub release
         if: steps.release.outputs.pushed == 'true'

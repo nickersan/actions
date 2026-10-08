@@ -21,7 +21,8 @@ builds the repo and, when there's something to release, releases it.
    ([`release/push`](release/push/action.yaml)). So `main` always declares the last release. If `main` moved on during
    the build nothing is pushed, and the build queued behind releases both.
 4. **Publishes**: a library or service to GitHub Packages (Maven or npm); a container repo's image to
-   `ghcr.io/nickersan/<image>:<version>` and `:latest`. Then creates a GitHub release with generated notes.
+   `ghcr.io/nickersan/<image>:<version>` and `:latest`, labelled with its source repo
+   ([`image/push`](image/push/action.yaml)). Then creates a GitHub release with generated notes.
 5. **Updates the container repo**, for a repo that has one: pins the new version in `<name>-container` and pushes it to
    `main` as `feat(deps):`, `fix(deps):` or `feat(deps)!:` to match the release, which releases the image in turn
    ([`release/update-container`](release/update-container/action.yaml)).
