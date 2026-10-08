@@ -64,8 +64,22 @@ jobs:
         with:
           declared-version: ${{ steps.project.outputs.version }}
 
+      # only main releases: a build of any other branch, e.g. Renovate's, is a check
+      - name: Release or check
+        id: plan
+        env:
+          BUMP: ${{ steps.next.outputs.bump }}
+        run: |
+          if [[ "${GITHUB_REF}" != refs/heads/main ]]
+          then
+            echo "::notice::${GITHUB_REF_NAME} is a branch - checks only, no release"
+          elif [[ "${BUMP}" != none ]]
+          then
+            echo "release=true" >> "${GITHUB_OUTPUT}"
+          fi
+
       - name: Set version ${{ steps.next.outputs.version }}
-        if: steps.next.outputs.bump != 'none'
+        if: steps.plan.outputs.release == 'true'
         run: >-
           mvn --batch-mode --quiet versions:set -DnewVersion=${{ steps.next.outputs.version }}
           -DgenerateBackupPoms=false -DprocessAllModules
@@ -76,7 +90,7 @@ jobs:
 
       - name: Push release
         id: release
-        if: steps.next.outputs.bump != 'none'
+        if: steps.plan.outputs.release == 'true'
         uses: nickersan/actions/release/push@main
         with:
           version: ${{ steps.next.outputs.version }}
