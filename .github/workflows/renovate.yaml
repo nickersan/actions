@@ -1,0 +1,40 @@
+# Runs Renovate over the tn and okayat repos (renovate/config.js) every hour. Run it by hand with dry-run to see what it
+# would do without it doing anything.
+name: renovate
+
+on:
+  schedule:
+    - cron: '23 * * * *'
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: 'Report what it would update, without updating anything'
+        type: boolean
+        default: false
+
+concurrency:
+  group: renovate
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  renovate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Renovate
+        uses: renovatebot/github-action@v46.3.7
+        with:
+          configurationFile: renovate/config.js
+          # a PAT, not GITHUB_TOKEN: Renovate's pushes to main must start the build that releases them
+          token: ${{ secrets.WORKFLOW_TOKEN }}
+          # the action's default, plus DRY_RUN for the configuration
+          env-regex: '^(?:RENOVATE_\w+|LOG_LEVEL|GITHUB_COM_TOKEN|DRY_RUN)$'
+        env:
+          LOG_LEVEL: info
+          DRY_RUN: ${{ inputs.dry-run || false }}
