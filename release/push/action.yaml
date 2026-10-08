@@ -1,0 +1,32 @@
+name: 'Push Release'
+description: 'Commits the bumped version to main and tags it v<version>, together, unless main has moved on since the build started'
+inputs:
+  version:
+    description: 'The version being released'
+    required: true
+outputs:
+  pushed:
+    description: 'true when the release commit and tag were pushed; false when main had moved on, so the next build releases instead'
+    value: ${{ steps.push.outputs.pushed }}
+runs:
+  using: composite
+  steps:
+    - name: Push v${{ inputs.version }}
+      id: push
+      shell: bash
+      env:
+        VERSION: ${{ inputs.version }}
+      run: |
+        git config user.name 'github-actions[bot]'
+        git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+        git commit --all --message "chore(release): ${VERSION} [skip ci]"
+        git tag --annotate "v${VERSION}" --message "${VERSION}"
+
+        # only fast-forwards: if main has moved on, the build queued behind this one includes these commits and releases them
+        if git push --atomic origin HEAD:refs/heads/main "refs/tags/v${VERSION}"
+        then
+          echo "pushed=true" >> "${GITHUB_OUTPUT}"
+        else
+          echo "::warning::main moved on during the build - the next build releases these changes"
+          echo "pushed=false" >> "${GITHUB_OUTPUT}"
+        fi

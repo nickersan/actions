@@ -1,0 +1,31 @@
+name: 'Next Version'
+description: 'Works out the next release version from the conventional commits since the last v* tag'
+inputs:
+  declared-version:
+    description: 'The version the project declares now, e.g. from pom.xml or package.json'
+    required: true
+outputs:
+  bump:
+    description: 'major, minor, patch or initial - or none when there is nothing to release'
+    value: ${{ steps.next.outputs.bump }}
+  version:
+    description: 'The version to release, or the current one when bump is none'
+    value: ${{ steps.next.outputs.version }}
+runs:
+  using: composite
+  steps:
+    - name: Next version
+      id: next
+      shell: bash
+      env:
+        DECLARED_VERSION: ${{ inputs.declared-version }}
+      run: |
+        read -r bump version <<< "$(bash "${GITHUB_ACTION_PATH}/next-version.sh" "${DECLARED_VERSION}")"
+        echo "bump=${bump}" >> "${GITHUB_OUTPUT}"
+        echo "version=${version}" >> "${GITHUB_OUTPUT}"
+        if [[ "${bump}" == none ]]
+        then
+          echo "::notice::No feat or fix since the last release - build only"
+        else
+          echo "::notice::Releasing ${version} (${bump})"
+        fi

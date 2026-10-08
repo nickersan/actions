@@ -1,0 +1,129 @@
+# Builds an npm repo on each push to main and, when the commits since the last release hold a feat or fix, releases it:
+# the version is bumped (see version/next), committed and tagged, then the package is published to GitHub Packages and
+# attached to the GitHub release - or, for a container repo (one with a Dockerfile, built by scripts/build-image.sh),
+# the image is pushed to ghcr.io as the repo's name less -container. A release that names its container-repository pins
+# the new version there, which releases the image in turn.
+name: npm
+
+on:
+  workflow_call:
+    inputs:
+      container-repository:
+        description: 'The repo packaging this one into an image, e.g. okayat-web-container'
+        type: string
+        default: ''
+      node-version:
+        type: string
+        default: '22'
+    secrets:
+      WORKFLOW_TOKEN:
+        description: 'A PAT with repo and write:packages scopes'
+        required: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      packages: write
+
+    env:
+      # the repos' .npmrc authenticates npm.pkg.github.com with this
+      NODE_AUTH_TOKEN: ${{ secrets.WORKFLOW_TOKEN }}
+      GH_TOKEN: ${{ secrets.WORKFLOW_TOKEN }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.WORKFLOW_TOKEN }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+          registry-url: https://npm.pkg.github.com
+          scope: '@${{ github.repository_owner }}'
+          cache: npm
+
+      - name: Describe project
+        id: project
+        run: |
+          echo "version=$(node -p "require('./package.json').version")" >> "${GITHUB_OUTPUT}"
+          echo "name=$(node -p "require('./package.json').name")" >> "${GITHUB_OUTPUT}"
+          if [[ -f Dockerfile ]]
+          then
+            repository="${{ github.event.repository.name }}"
+            echo "image=${repository%-container}" >> "${GITHUB_OUTPUT}"
+          fi
+
+      - name: Next version
+        id: next
+        uses: nickersan/actions/version/next@main
+        with:
+          declared-version: ${{ steps.project.outputs.version }}
+
+      - name: Set version ${{ steps.next.outputs.version }}
+        if: steps.next.outputs.bump != 'none'
+        run: npm version "${{ steps.next.outputs.version }}" --no-git-tag-version --allow-same-version
+
+      - name: Install
+        run: npm ci
+
+      - name: Build
+        run: |
+          if [[ -f Dockerfile ]]
+          then
+            bash scripts/build-image.sh
+          else
+            npm run verify
+          fi
+
+      - name: Push release
+        id: release
+        if: steps.next.outputs.bump != 'none'
+        uses: nickersan/actions/release/push@main
+        with:
+          version: ${{ steps.next.outputs.version }}
+
+      # verify has already run, so prepublishOnly needn't run it again
+      - name: Publish
+        if: steps.release.outputs.pushed == 'true' && steps.project.outputs.image == ''
+        run: |
+          npm publish --ignore-scripts
+          npm pack --ignore-scripts
+
+      - name: Push image
+        if: steps.release.outputs.pushed == 'true' && steps.project.outputs.image != ''
+        env:
+          IMAGE: ${{ steps.project.outputs.image }}
+          VERSION: ${{ steps.next.outputs.version }}
+        run: |
+          echo "${{ github.token }}" | docker login ghcr.io --username "${{ github.actor }}" --password-stdin
+          for tag in "${VERSION}" latest
+          do
+            docker tag "${IMAGE}:${VERSION}" "ghcr.io/${{ github.repository_owner }}/${IMAGE}:${tag}"
+            docker push "ghcr.io/${{ github.repository_owner }}/${IMAGE}:${tag}"
+          done
+          echo "::notice::Pushed ghcr.io/${{ github.repository_owner }}/${IMAGE}:${VERSION}"
+
+      - name: Create GitHub release
+        if: steps.release.outputs.pushed == 'true'
+        run: |
+          shopt -s nullglob
+          gh release create "v${{ steps.next.outputs.version }}" --verify-tag --generate-notes -- *.tgz
+
+      - name: Update ${{ inputs.container-repository }}
+        if: steps.release.outputs.pushed == 'true' && inputs.container-repository != ''
+        uses: nickersan/actions/release/update-container@main
+        with:
+          repository: ${{ inputs.container-repository }}
+          artifact: ${{ steps.project.outputs.name }}
+          version: ${{ steps.next.outputs.version }}
+          bump: ${{ steps.next.outputs.bump }}
+          update: >-
+            npm pkg set "dependencies.${{ steps.project.outputs.name }}=${VERSION}"
+            && npm install --package-lock-only --ignore-scripts
+          token: ${{ secrets.WORKFLOW_TOKEN }}

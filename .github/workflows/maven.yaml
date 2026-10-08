@@ -1,0 +1,117 @@
+# Builds a Maven repo on each push to main and, when the commits since the last release hold a feat or fix, releases it:
+# the version is bumped (see version/next), committed and tagged, then the artifacts are deployed to GitHub Packages -
+# or, for a container repo (one with a Dockerfile), the image is pushed to ghcr.io. A release of a service that names
+# its container-repository pins the new version there, which releases the image in turn.
+name: maven
+
+on:
+  workflow_call:
+    inputs:
+      container-repository:
+        description: 'The repo packaging this one into an image, e.g. tn-user-service-container'
+        type: string
+        default: ''
+      java-version:
+        description: "Must match tn-parent's compiler release"
+        type: string
+        default: '25'
+    secrets:
+      WORKFLOW_TOKEN:
+        description: 'A PAT with repo and write:packages scopes'
+        required: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      packages: write
+
+    env:
+      # setup-java's settings.xml authenticates the github server with this
+      GITHUB_TOKEN: ${{ secrets.WORKFLOW_TOKEN }}
+      GH_TOKEN: ${{ secrets.WORKFLOW_TOKEN }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.WORKFLOW_TOKEN }}
+
+      - name: Setup JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ inputs.java-version }}
+          distribution: temurin
+          cache: maven
+
+      - name: Describe project
+        id: project
+        run: |
+          evaluate() { mvn --batch-mode --quiet help:evaluate -Dexpression="$1" -DforceStdout; }
+          echo "version=$(evaluate project.version)" >> "${GITHUB_OUTPUT}"
+          echo "coordinates=$(evaluate project.groupId):$(evaluate project.artifactId)" >> "${GITHUB_OUTPUT}"
+          if [[ -f Dockerfile ]]
+          then
+            echo "image=$(evaluate docker-image-repository)" >> "${GITHUB_OUTPUT}"
+          fi
+
+      - name: Next version
+        id: next
+        uses: nickersan/actions/version/next@main
+        with:
+          declared-version: ${{ steps.project.outputs.version }}
+
+      - name: Set version ${{ steps.next.outputs.version }}
+        if: steps.next.outputs.bump != 'none'
+        run: >-
+          mvn --batch-mode --quiet versions:set -DnewVersion=${{ steps.next.outputs.version }}
+          -DgenerateBackupPoms=false -DprocessAllModules
+
+      # install, not verify: a container repo's docker profile builds the image in the install phase
+      - name: Build
+        run: mvn --batch-mode install
+
+      - name: Push release
+        id: release
+        if: steps.next.outputs.bump != 'none'
+        uses: nickersan/actions/release/push@main
+        with:
+          version: ${{ steps.next.outputs.version }}
+
+      - name: Deploy
+        if: steps.release.outputs.pushed == 'true' && steps.project.outputs.image == ''
+        run: mvn --batch-mode deploy -DskipTests
+
+      - name: Push image
+        if: steps.release.outputs.pushed == 'true' && steps.project.outputs.image != ''
+        env:
+          IMAGE: ${{ steps.project.outputs.image }}
+          VERSION: ${{ steps.next.outputs.version }}
+        run: |
+          echo "${{ github.token }}" | docker login ghcr.io --username "${{ github.actor }}" --password-stdin
+          for tag in "${VERSION}" latest
+          do
+            docker tag "${IMAGE}:${VERSION}" "ghcr.io/${{ github.repository_owner }}/${IMAGE}:${tag}"
+            docker push "ghcr.io/${{ github.repository_owner }}/${IMAGE}:${tag}"
+          done
+          echo "::notice::Pushed ghcr.io/${{ github.repository_owner }}/${IMAGE}:${VERSION}"
+
+      - name: Create GitHub release
+        if: steps.release.outputs.pushed == 'true'
+        run: gh release create "v${{ steps.next.outputs.version }}" --verify-tag --generate-notes
+
+      - name: Update ${{ inputs.container-repository }}
+        if: steps.release.outputs.pushed == 'true' && inputs.container-repository != ''
+        uses: nickersan/actions/release/update-container@main
+        with:
+          repository: ${{ inputs.container-repository }}
+          artifact: ${{ github.event.repository.name }}
+          version: ${{ steps.next.outputs.version }}
+          bump: ${{ steps.next.outputs.bump }}
+          update: >-
+            mvn --batch-mode --quiet versions:use-dep-version -Dincludes=${{ steps.project.outputs.coordinates }}
+            -DdepVersion="${VERSION}" -DforceVersion=true -DgenerateBackupPoms=false
+          token: ${{ secrets.WORKFLOW_TOKEN }}

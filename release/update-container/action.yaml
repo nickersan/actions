@@ -1,0 +1,67 @@
+name: 'Update Container'
+description: >-
+  Pins a release in the repo that packages it into an image (its <name>-container repo) and pushes that to main, which
+  builds and publishes the image. The commit's type follows the release's bump, so the container is versioned to match.
+inputs:
+  repository:
+    description: 'The container repo, e.g. tn-user-service-container'
+    required: true
+  artifact:
+    description: 'What was released, for the commit message, e.g. tn-user-service'
+    required: true
+  version:
+    description: 'The version released'
+    required: true
+  bump:
+    description: 'major, minor, patch or initial, from version/next'
+    required: true
+  update:
+    description: 'Shell command that pins $VERSION, run in the container repo'
+    required: true
+  token:
+    description: 'A PAT that can push to the container repo - pushes made with GITHUB_TOKEN start no workflows'
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Checkout ${{ inputs.repository }}
+      uses: actions/checkout@v4
+      with:
+        repository: ${{ github.repository_owner }}/${{ inputs.repository }}
+        token: ${{ inputs.token }}
+        path: .container
+
+    - name: Pin ${{ inputs.artifact }} ${{ inputs.version }}
+      shell: bash
+      working-directory: .container
+      env:
+        ARTIFACT: ${{ inputs.artifact }}
+        BUMP: ${{ inputs.bump }}
+        UPDATE: ${{ inputs.update }}
+        VERSION: ${{ inputs.version }}
+      run: |
+        eval "${UPDATE}"
+
+        git add --all
+        if git diff --cached --quiet
+        then
+          echo "::notice::${{ inputs.repository }} already has ${ARTIFACT} ${VERSION}"
+          exit 0
+        fi
+
+        case "${BUMP}" in
+          major) type='feat(deps)!' ;;
+          patch) type='fix(deps)' ;;
+          *) type='feat(deps)' ;;
+        esac
+
+        git config user.name 'github-actions[bot]'
+        git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+        git commit --message "${type}: ${ARTIFACT} ${VERSION}"
+
+        for attempt in 1 2 3
+        do
+          git push origin HEAD:main && exit 0
+          git pull --rebase origin main
+        done
+        exit 1
