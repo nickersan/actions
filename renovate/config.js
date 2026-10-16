@@ -24,6 +24,8 @@ module.exports = {
     'nickersan/okayat-bff-container',
     'nickersan/okayat-spot-service',
     'nickersan/okayat-spot-service-container',
+    'nickersan/okayat-session-service',
+    'nickersan/okayat-session-service-container',
     'nickersan/okayat-client',
     'nickersan/okayat-app',
     'nickersan/okayat-web',
@@ -76,6 +78,14 @@ module.exports = {
       matchUpdateTypes: ['major'],
       commitMessagePrefix: 'feat(deps)!:',
       automerge: false,
+    },
+
+    // eslint and @eslint/js are released together and each peer-depends on the other's major, so a major of one alone cannot
+    // install: they move in one branch
+    {
+      matchUpdateTypes: ['major'],
+      matchPackageNames: ['eslint', '@eslint/js'],
+      groupName: 'eslint',
     },
 
     // tn-parent pins Hibernate Envers and Spring Data Envers to the versions Spring Boot manages, so a major of one is a
