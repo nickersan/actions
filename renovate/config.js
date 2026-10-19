@@ -42,6 +42,8 @@ module.exports = {
     'nickersan/okayat-app',
     'nickersan/okayat-web',
     'nickersan/okayat-web-container',
+    'nickersan/okayat-mobile',
+    'nickersan/okayat-acceptance',
   ],
   onboarding: false,
   requireConfig: 'optional',
@@ -132,6 +134,33 @@ module.exports = {
     {
       matchRepositories: ['nickersan/actions'],
       automerge: false,
+    },
+
+    // okayat-mobile's Expo SDK fixes the versions of these (`expo install --fix` puts them back), so they move only with
+    // a deliberate SDK upgrade
+    {
+      matchRepositories: ['nickersan/okayat-mobile'],
+      matchPackageNames: [
+        'expo',
+        'expo-*',
+        'eslint-config-expo',
+        'react',
+        'react-dom',
+        'react-native',
+        'react-native-gesture-handler',
+        'react-native-reanimated',
+        'react-native-safe-area-context',
+        'react-native-screens',
+        'react-native-svg',
+        'react-native-worklets',
+        '@react-native-community/*',
+        '@types/react',
+        'jest',
+        'jest-expo',
+        '@types/jest',
+        'typescript',
+      ],
+      enabled: false,
     },
   ],
 };
