@@ -18,6 +18,8 @@ module.exports = {
     'nickersan/tn-auth-service-container',
     'nickersan/tn-user-service',
     'nickersan/tn-user-service-container',
+    'nickersan/tn-media-service',
+    'nickersan/tn-media-service-container',
     'nickersan/tn-notification-service',
     'nickersan/tn-notification-service-container',
     'nickersan/tn-temporary-token-service',
