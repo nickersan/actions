@@ -1,10 +1,10 @@
-# Runs Renovate over the tn and okayat repos (renovate/config.js) every hour. Run it by hand with dry-run to see what it
+# Runs Renovate over the tn and okayat repos (renovate/config.js) every three hours. Run it by hand with dry-run to see what it
 # would do without it doing anything.
 name: renovate
 
 on:
   schedule:
-    - cron: '23 * * * *'
+    - cron: '23 */3 * * *'
   workflow_dispatch:
     inputs:
       dry-run:

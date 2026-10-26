@@ -24,6 +24,12 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
+    concurrency:
+      # a newer push to a branch supersedes the build of an older one; main is never cancelled, as it may be mid-release
+      # (a build it queues behind finds the commits since the last release anyway, see version/next)
+      group: ${{ github.workflow }}-${{ github.repository }}-${{ github.ref }}
+      cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
     permissions:
       contents: read
       packages: write

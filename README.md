@@ -31,7 +31,7 @@ A push to any other branch - Renovate's `renovate/**` ones - only builds, as a c
 
 ## Renovate
 
-[`renovate.yaml`](.github/workflows/renovate.yaml) runs [Renovate](https://docs.renovatebot.com) hourly over the repos
+[`renovate.yaml`](.github/workflows/renovate.yaml) runs [Renovate](https://docs.renovatebot.com) every three hours over the repos
 [`renovate/config.js`](renovate/config.js) lists - they carry no Renovate config of their own. An update is a
 `renovate/` branch; when its build passes, Renovate fast-forwards it onto `main`, whose build releases it.
 
