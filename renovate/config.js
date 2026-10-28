@@ -146,6 +146,14 @@ module.exports = {
       automerge: false,
     },
 
+    // TypeScript 7 cannot be installed beside openapi-typescript (peer typescript ^5.x) and typescript-eslint (below 6.1),
+    // so its pull requests only ever fail; lift this once both support it
+    {
+      matchUpdateTypes: ['major'],
+      matchPackageNames: ['typescript'],
+      enabled: false,
+    },
+
     // okayat-mobile's Expo SDK fixes the versions of these (`expo install --fix` puts them back), so they move only with
     // a deliberate SDK upgrade
     {
