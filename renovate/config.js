@@ -75,7 +75,9 @@ module.exports = {
       token: process.env.RENOVATE_TOKEN,
     },
   ],
-  npmrc: '@nickersan:registry=https://npm.pkg.github.com\n',
+  // npm 12 won't fetch a tarball to read a package's bundled dependencies unless allowed (appium's drivers bundle theirs),
+  // which leaves their lockfile unable to update
+  npmrc: '@nickersan:registry=https://npm.pkg.github.com\nallow-remote=all\n',
 
   extends: ['config:recommended'],
   // its monorepo groups would take precedence over the weekly batch below
