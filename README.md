@@ -35,8 +35,9 @@ A push to any other branch - Renovate's `renovate/**` ones - only builds, as a c
 [`renovate/config.js`](renovate/config.js) lists - they carry no Renovate config of their own. An update is a
 `renovate/` branch; when its build passes, Renovate fast-forwards it onto `main`, whose build releases it.
 
-- **tn and okayat libraries** (`com.tn*`, `com.okayat*`, `@nickersan/*`) as soon as they're released, all of a repo's
-  in one branch. Components declare their tn library versions as properties for this; `tn-parent` manages none.
+- **Not** our own libraries (`com.tn*`, `com.okayat*`, `@nickersan/*`): whoever releases one bumps its consumers (the
+  push step of `complete-change`), so they move with the change that needs them. `tn-parent` is the exception: it carries
+  the third-party versions every repo builds on, so it moves with the weekly batch.
 - **Third-party minor and patch updates** once a week, Monday morning, all of a repo's in one branch.
 - **Majors** wait as pull requests for a person, committed as `feat(deps)!:` - a major of something we build on is a
   major of ours. Every other update is `fix(deps):`.

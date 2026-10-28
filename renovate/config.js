@@ -121,16 +121,15 @@ module.exports = {
       groupName: 'spring boot',
     },
 
-    // a tn or okayat release reaches every repo using it as soon as it's out, all together
+    // our own libraries are bumped by whoever releases them (complete-change step 8), so Renovate leaves them alone - bar
+    // tn-parent, which also carries the third-party versions every repo builds on and so moves with the weekly batch
     {
-      matchPackageNames: ['/^com\\.(tn|okayat)[.:]/'],
-      groupName: 'tn libraries',
-      schedule: ['at any time'],
+      matchPackageNames: ['/^com\\.(tn|okayat)[.:]/', '@nickersan/**'],
+      enabled: false,
     },
     {
-      matchPackageNames: ['@nickersan/**'],
-      groupName: 'okayat libraries',
-      schedule: ['at any time'],
+      matchPackageNames: ['com.tn:tn-parent'],
+      enabled: true,
     },
 
     // a container repo's pin on what it packages is moved on by that repo's own release (release/update-container)
