@@ -20,7 +20,7 @@ builds the repo and, when there's something to release, releases it.
 3. **Commits and tags it** - `chore(release): <version> [skip ci]` and `v<version>`, pushed together
    ([`release/push`](release/push/action.yaml)). So `main` always declares the last release. If `main` moved on during
    the build nothing is pushed, and the build queued behind releases both.
-4. **Publishes**: a library or service to GitHub Packages (Maven or npm); a container repo's image to
+4. **Publishes**: a library or service to GitHub Packages (Maven or npm); a container repo's image (or a service's own, see below) to
    `ghcr.io/nickersan/<image>:<version>` and `:latest`, labelled with its source repo
    ([`image/push`](image/push/action.yaml)). Then creates a GitHub release with generated notes.
 5. **Updates the container repo**, for a repo that has one: pins the new version in `<name>-container` and pushes it to
@@ -81,9 +81,17 @@ The repo needs a `WORKFLOW_TOKEN` secret: a PAT with `repo` and `write:packages`
 and the container repo's update (a push made with `GITHUB_TOKEN` starts no workflows), and reads and publishes packages.
 This repo needs it too, for Renovate.
 
-A container repo is one with a `Dockerfile`. For Maven, `tn-parent`'s `docker` profile builds the image as
+A repo with a `Dockerfile` also pushes an image. For Maven, `tn-parent`'s `docker` profile builds the image as
 `${docker-image-repository}:${project.version}`; for npm, `scripts/build-image.sh` builds it as the repo's name less
 `-container`, tagged with its version.
+
+Two cases, told apart by the Maven packaging (`pom` or `jar`):
+
+- **A container repo** (`Dockerfile`, `pom` packaging) pushes only its image; the service it packages names it as its
+  `container-repository`, and step 5 pins the new version there.
+- **A service that carries its own image build** (`Dockerfile`, `jar` packaging) deploys its jar and pushes its image in
+  the same release, tagged with that release's version. It names no `container-repository`. npm repos are unchanged: a web
+  container is still a separate repo.
 
 ## When a release half-fails
 

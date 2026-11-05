@@ -1,7 +1,8 @@
 # Builds a Maven repo on each push to main and, when the commits since the last release hold a feat or fix, releases it:
-# the version is bumped (see version/next), committed and tagged, then the artifacts are deployed to GitHub Packages -
-# or, for a container repo (one with a Dockerfile), the image is pushed to ghcr.io. A release of a service that names
-# its container-repository pins the new version there, which releases the image in turn.
+# the version is bumped (see version/next), committed and tagged, then the artifacts are deployed to GitHub Packages.
+# A repo with a Dockerfile also pushes an image to ghcr.io: a container repo (Dockerfile, pom packaging) pushes only the image,
+# and a service that names its container-repository pins the new version there, which releases the image in turn; a service
+# that carries its own image build (Dockerfile, jar packaging) deploys its jar and pushes its image in the same release.
 name: maven
 
 on:
@@ -63,6 +64,7 @@ jobs:
           if [[ -f Dockerfile ]]
           then
             echo "image=$(evaluate docker-image-repository)" >> "${GITHUB_OUTPUT}"
+            echo "packaging=$(evaluate project.packaging)" >> "${GITHUB_OUTPUT}"
           fi
 
       - name: Next version
@@ -103,7 +105,7 @@ jobs:
           version: ${{ steps.next.outputs.version }}
 
       - name: Deploy
-        if: steps.release.outputs.pushed == 'true' && steps.project.outputs.image == ''
+        if: steps.release.outputs.pushed == 'true' && (steps.project.outputs.image == '' || steps.project.outputs.packaging == 'jar')
         run: mvn --batch-mode deploy -DskipTests
 
       - name: Push image
