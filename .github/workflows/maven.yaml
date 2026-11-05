@@ -22,7 +22,8 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    # not ubuntu-latest: from 2026-11 that is ubuntu-26.04, whose Maven fails resolving from GitHub Packages (BasicAuthCache ClassCastException)
+    runs-on: ubuntu-24.04
 
     concurrency:
       # a newer push to a branch supersedes the build of an older one; main is never cancelled, as it may be mid-release
