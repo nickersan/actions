@@ -33,7 +33,6 @@ module.exports = {
     'nickersan/okayat-spot-service',
     'nickersan/okayat-spot-service-container',
     'nickersan/okayat-terms-service',
-    'nickersan/okayat-terms-service-container',
     'nickersan/okayat-moderation-service',
     'nickersan/okayat-moderation-service-container',
     'nickersan/okayat-profile-service',
