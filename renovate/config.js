@@ -32,7 +32,6 @@ module.exports = {
     'nickersan/okayat-event',
     'nickersan/okayat-message-format',
     'nickersan/okayat-event-routing-service',
-    'nickersan/okayat-client',
     'nickersan/okayat-app',
     'nickersan/okayat-web',
     'nickersan/okayat-web-container',
