@@ -108,10 +108,18 @@ jobs:
           fi
           npm version "${VERSION}" --no-git-tag-version --allow-same-version --workspaces --include-workspace-root --no-workspaces-update
           # npm leaves a workspace's range on another as it was, which the new version no longer satisfies
+          # (the workspaces come from the root package.json: npm query only sees installed ones, and nothing is installed yet)
           node -e '
-            const fs = require("fs"), { execSync } = require("child_process");
+            const fs = require("fs"), path = require("path");
             const version = process.argv[1];
-            const workspaces = JSON.parse(execSync("npm query .workspace", { encoding: "utf8" }));
+            const dirs = require(path.resolve("package.json")).workspaces.flatMap((entry) =>
+            {
+              if (!entry.endsWith("/*")) return [entry];
+              const parent = entry.slice(0, -2);
+              return fs.readdirSync(parent, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => `${parent}/${d.name}`);
+            }).filter((dir) => fs.existsSync(`${dir}/package.json`));
+            if (dirs.length === 0) throw new Error("no workspace package.json found");
+            const workspaces = dirs.map((location) => ({ location, name: JSON.parse(fs.readFileSync(`${location}/package.json`, "utf8")).name }));
             const names = new Set(workspaces.map((w) => w.name));
             for (const w of workspaces)
             {
