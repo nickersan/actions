@@ -90,8 +90,13 @@ Two cases, told apart by the Maven packaging (`pom` or `jar`):
 - **A container repo** (`Dockerfile`, `pom` packaging) pushes only its image; the service it packages names it as its
   `container-repository`, and step 5 pins the new version there.
 - **A service that carries its own image build** (`Dockerfile`, `jar` packaging) deploys its jar and pushes its image in
-  the same release, tagged with that release's version. It names no `container-repository`. npm repos are unchanged: a web
-  container is still a separate repo.
+  the same release, tagged with that release's version. It names no `container-repository`.
+
+For npm, what `package.json` declares decides: a `verify` script runs first; a `Dockerfile` pushes the image; `"private": true`
+publishes nothing to GitHub Packages and attaches no `.tgz` (a workspace root is private by npm's rule, so there each workspace
+decides). A web app (`verify`, `Dockerfile`, `private`) verifies, builds its image from its own build and pushes it in one release;
+an old container repo (no `verify`, `private`) only builds and pushes its image. `container-repository` is still accepted until
+the web apps have released without it.
 
 ## When a release half-fails
 

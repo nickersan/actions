@@ -1,17 +1,21 @@
 # Builds an npm repo on each push to main and, when the commits since the last release hold a feat or fix, releases it:
-# the version is bumped (see version/next), committed and tagged, then the package is published to GitHub Packages and
-# attached to the GitHub release - or, for a container repo (one with a Dockerfile, built by scripts/build-image.sh),
-# the image is pushed to ghcr.io as the repo's name less -container. A release that names its container-repository pins
-# the new version there, which releases the image in turn. A repo whose root package.json has workspaces releases them
-# together: the root and every workspace take the one version, a workspace's range on another becomes ^<version>, and each
-# workspace is published and attached (container-repository is not supported there).
+# the version is bumped (see version/next), committed and tagged, then what the package declares decides what it releases:
+# - a verify script in package.json runs first (npm run verify); a container repo has none;
+# - a Dockerfile means an image, built by scripts/build-image.sh and pushed to ghcr.io as the repo's name less -container;
+# - "private": true means nothing is published to GitHub Packages and nothing attached to the GitHub release; otherwise
+#   the package is published and its .tgz attached (a workspace root is private by npm's rule, so it decides per workspace).
+# So a web app with a Dockerfile verifies, builds its image from its own build and pushes it in one release; an old container
+# repo (private, no verify) only builds and pushes its image. A release that names its container-repository pins the new
+# version there, which releases the image in turn. A repo whose root package.json has workspaces releases them together:
+# the root and every workspace take the one version, a workspace's range on another becomes ^<version>, and each workspace
+# is published and attached (container-repository is not supported there).
 name: npm
 
 on:
   workflow_call:
     inputs:
       container-repository:
-        description: 'The repo packaging this one into an image, e.g. okayat-web-container'
+        description: 'The repo packaging this one into an image, e.g. okayat-web-container; kept only until the web repos have released without it'
         type: string
         default: ''
       node-version:
@@ -24,7 +28,7 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     concurrency:
       # a newer push to a branch supersedes the build of an older one; main is never cancelled, as it may be mid-release
@@ -62,6 +66,9 @@ jobs:
           echo "version=$(node -p "require('./package.json').version")" >> "${GITHUB_OUTPUT}"
           echo "name=$(node -p "require('./package.json').name")" >> "${GITHUB_OUTPUT}"
           echo "workspaces=$(node -p "(require('./package.json').workspaces ?? []).length > 0")" >> "${GITHUB_OUTPUT}"
+          # a workspace root is private by npm's rule; its workspaces publish (npm skips any marked private)
+          echo "publish=$(node -p "const p = require('./package.json'); (p.workspaces ?? []).length > 0 || p.private !== true")" >> "${GITHUB_OUTPUT}"
+          echo "verify=$(node -p "typeof require('./package.json').scripts?.verify === 'string'")" >> "${GITHUB_OUTPUT}"
           if [[ -f Dockerfile ]]
           then
             repository="${{ github.event.repository.name }}"
@@ -120,12 +127,16 @@ jobs:
         run: npm ci
 
       - name: Build
+        env:
+          VERIFY: ${{ steps.project.outputs.verify }}
         run: |
+          if [[ "${VERIFY}" == true ]]
+          then
+            npm run verify
+          fi
           if [[ -f Dockerfile ]]
           then
             bash scripts/build-image.sh
-          else
-            npm run verify
           fi
 
       - name: Push release
@@ -135,9 +146,9 @@ jobs:
         with:
           version: ${{ steps.next.outputs.version }}
 
-      # verify has already run, so prepublishOnly needn't run it again
+      # verify has already run, so prepublishOnly needn't run it again; a private package publishes nothing
       - name: Publish
-        if: steps.release.outputs.pushed == 'true' && steps.project.outputs.image == ''
+        if: steps.release.outputs.pushed == 'true' && steps.project.outputs.publish == 'true'
         env:
           WORKSPACES: ${{ steps.project.outputs.workspaces }}
         run: |
