@@ -118,14 +118,6 @@ module.exports = {
       enabled: true,
     },
 
-    // a container repo's pin on what it packages is moved on by that repo's own release (release/update-container)
-    {
-      matchRepositories: ['nickersan/*-container'],
-      matchDepTypes: ['compile', 'dependencies'],
-      matchPackageNames: ['/^com\\.(tn|okayat)[.:]/', '@nickersan/**'],
-      enabled: false,
-    },
-
     // the shared workflows have no build of their own to check an update against
     {
       matchRepositories: ['nickersan/actions'],

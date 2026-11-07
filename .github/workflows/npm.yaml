@@ -1,23 +1,17 @@
 # Builds an npm repo on each push to main and, when the commits since the last release hold a feat or fix, releases it:
 # the version is bumped (see version/next), committed and tagged, then what the package declares decides what it releases:
-# - a verify script in package.json runs first (npm run verify); a container repo has none;
-# - a Dockerfile means an image, built by scripts/build-image.sh and pushed to ghcr.io as the repo's name less -container;
+# - a verify script in package.json runs first (npm run verify);
+# - a Dockerfile means an image, built by scripts/build-image.sh and pushed to ghcr.io as the repo's name;
 # - "private": true means nothing is published to GitHub Packages and nothing attached to the GitHub release; otherwise
 #   the package is published and its .tgz attached (a workspace root is private by npm's rule, so it decides per workspace).
-# So a web app with a Dockerfile verifies, builds its image from its own build and pushes it in one release; an old container
-# repo (private, no verify) only builds and pushes its image. A release that names its container-repository pins the new
-# version there, which releases the image in turn. A repo whose root package.json has workspaces releases them together:
-# the root and every workspace take the one version, a workspace's range on another becomes ^<version>, and each workspace
-# is published and attached (container-repository is not supported there).
+# So a web app with a Dockerfile verifies, builds its image from its own build and pushes it in one release. A repo whose
+# root package.json has workspaces releases them together: the root and every workspace take the one version, a workspace's
+# range on another becomes ^<version>, and each workspace is published and attached.
 name: npm
 
 on:
   workflow_call:
     inputs:
-      container-repository:
-        description: 'The repo packaging this one into an image, e.g. okayat-web-container; kept only until the web repos have released without it'
-        type: string
-        default: ''
       node-version:
         type: string
         default: '22'
@@ -71,8 +65,7 @@ jobs:
           echo "verify=$(node -p "typeof require('./package.json').scripts?.verify === 'string'")" >> "${GITHUB_OUTPUT}"
           if [[ -f Dockerfile ]]
           then
-            repository="${{ github.event.repository.name }}"
-            echo "image=${repository%-container}" >> "${GITHUB_OUTPUT}"
+            echo "image=${{ github.event.repository.name }}" >> "${GITHUB_OUTPUT}"
           fi
 
       - name: Next version
@@ -183,15 +176,3 @@ jobs:
           shopt -s nullglob
           gh release create "v${{ steps.next.outputs.version }}" --verify-tag --generate-notes -- *.tgz
 
-      - name: Update ${{ inputs.container-repository }}
-        if: steps.release.outputs.pushed == 'true' && inputs.container-repository != ''
-        uses: nickersan/actions/release/update-container@main
-        with:
-          repository: ${{ inputs.container-repository }}
-          artifact: ${{ steps.project.outputs.name }}
-          version: ${{ steps.next.outputs.version }}
-          bump: ${{ steps.next.outputs.bump }}
-          update: >-
-            npm pkg set "dependencies.${{ steps.project.outputs.name }}=${VERSION}"
-            && npm install --package-lock-only --ignore-scripts
-          token: ${{ secrets.WORKFLOW_TOKEN }}

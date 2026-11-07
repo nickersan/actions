@@ -1,17 +1,11 @@
 # Builds a Maven repo on each push to main and, when the commits since the last release hold a feat or fix, releases it:
 # the version is bumped (see version/next), committed and tagged, then the artifacts are deployed to GitHub Packages.
-# A repo with a Dockerfile also pushes an image to ghcr.io: a container repo (Dockerfile, pom packaging) pushes only the image,
-# and a service that names its container-repository pins the new version there, which releases the image in turn; a service
-# that carries its own image build (Dockerfile, jar packaging) deploys its jar and pushes its image in the same release.
+# A service with a Dockerfile also pushes its image to ghcr.io in the same release, tagged with that release's version.
 name: maven
 
 on:
   workflow_call:
     inputs:
-      container-repository:
-        description: 'The repo packaging this one into an image, e.g. tn-user-service-container'
-        type: string
-        default: ''
       java-version:
         description: "Must match tn-parent's compiler release"
         type: string
@@ -60,11 +54,9 @@ jobs:
         run: |
           evaluate() { mvn --batch-mode --quiet help:evaluate -Dexpression="$1" -DforceStdout; }
           echo "version=$(evaluate project.version)" >> "${GITHUB_OUTPUT}"
-          echo "coordinates=$(evaluate project.groupId):$(evaluate project.artifactId)" >> "${GITHUB_OUTPUT}"
           if [[ -f Dockerfile ]]
           then
             echo "image=$(evaluate docker-image-repository)" >> "${GITHUB_OUTPUT}"
-            echo "packaging=$(evaluate project.packaging)" >> "${GITHUB_OUTPUT}"
           fi
 
       - name: Next version
@@ -93,7 +85,7 @@ jobs:
           mvn --batch-mode --quiet versions:set -DnewVersion=${{ steps.next.outputs.version }}
           -DgenerateBackupPoms=false -DprocessAllModules
 
-      # install, not verify: a container repo's docker profile builds the image in the install phase
+      # install, not verify: tn-parent's docker profile builds the image in the install phase
       - name: Build
         run: mvn --batch-mode install
 
@@ -105,7 +97,7 @@ jobs:
           version: ${{ steps.next.outputs.version }}
 
       - name: Deploy
-        if: steps.release.outputs.pushed == 'true' && (steps.project.outputs.image == '' || steps.project.outputs.packaging == 'jar')
+        if: steps.release.outputs.pushed == 'true'
         run: mvn --batch-mode deploy -DskipTests
 
       - name: Push image
@@ -120,15 +112,3 @@ jobs:
         if: steps.release.outputs.pushed == 'true'
         run: gh release create "v${{ steps.next.outputs.version }}" --verify-tag --generate-notes
 
-      - name: Update ${{ inputs.container-repository }}
-        if: steps.release.outputs.pushed == 'true' && inputs.container-repository != ''
-        uses: nickersan/actions/release/update-container@main
-        with:
-          repository: ${{ inputs.container-repository }}
-          artifact: ${{ github.event.repository.name }}
-          version: ${{ steps.next.outputs.version }}
-          bump: ${{ steps.next.outputs.bump }}
-          update: >-
-            mvn --batch-mode --quiet versions:use-dep-version -Dincludes=${{ steps.project.outputs.coordinates }}
-            -DdepVersion="${VERSION}" -DforceVersion=true -DgenerateBackupPoms=false
-          token: ${{ secrets.WORKFLOW_TOKEN }}

@@ -20,12 +20,9 @@ builds the repo and, when there's something to release, releases it.
 3. **Commits and tags it** - `chore(release): <version> [skip ci]` and `v<version>`, pushed together
    ([`release/push`](release/push/action.yaml)). So `main` always declares the last release. If `main` moved on during
    the build nothing is pushed, and the build queued behind releases both.
-4. **Publishes**: a library or service to GitHub Packages (Maven or npm); a container repo's image (or a service's own, see below) to
+4. **Publishes**: a library or service to GitHub Packages (Maven or npm), and the image of a repo with a `Dockerfile` to
    `ghcr.io/nickersan/<image>:<version>` and `:latest`, labelled with its source repo
    ([`image/push`](image/push/action.yaml)). Then creates a GitHub release with generated notes.
-5. **Updates the container repo**, for a repo that has one: pins the new version in `<name>-container` and pushes it to
-   `main` as `feat(deps):`, `fix(deps):` or `feat(deps)!:` to match the release, which releases the image in turn
-   ([`release/update-container`](release/update-container/action.yaml)).
 
 A push to any other branch - Renovate's `renovate/**` ones - only builds, as a check: nothing is versioned or published.
 
@@ -41,7 +38,6 @@ A push to any other branch - Renovate's `renovate/**` ones - only builds, as a c
 - **Third-party minor and patch updates** once a week, Monday morning, all of a repo's in one branch.
 - **Majors** wait as pull requests for a person, committed as `feat(deps)!:` - a major of something we build on is a
   major of ours. Every other update is `fix(deps):`.
-- **Not** a container repo's pin on what it packages, which its source's release moves on (step 5).
 
 Run it by hand from the Actions tab, with *dry-run* to see what it would do without doing it. The Dependency Dashboard
 issue in each repo lists what's pending.
@@ -72,31 +68,21 @@ permissions:
 jobs:
   build:
     uses: nickersan/actions/.github/workflows/maven.yaml@main
-    with:
-      container-repository: tn-user-service-container   # services and web UIs only
     secrets: inherit
 ```
 
 The repo needs a `WORKFLOW_TOKEN` secret: a PAT with `repo` and `write:packages` scopes. It pushes the release commit
-and the container repo's update (a push made with `GITHUB_TOKEN` starts no workflows), and reads and publishes packages.
+(a push made with `GITHUB_TOKEN` starts no workflows), and reads and publishes packages.
 This repo needs it too, for Renovate.
 
-A repo with a `Dockerfile` also pushes an image. For Maven, `tn-parent`'s `docker` profile builds the image as
-`${docker-image-repository}:${project.version}`; for npm, `scripts/build-image.sh` builds it as the repo's name less
-`-container`, tagged with its version.
-
-Two cases, told apart by the Maven packaging (`pom` or `jar`):
-
-- **A container repo** (`Dockerfile`, `pom` packaging) pushes only its image; the service it packages names it as its
-  `container-repository`, and step 5 pins the new version there.
-- **A service that carries its own image build** (`Dockerfile`, `jar` packaging) deploys its jar and pushes its image in
-  the same release, tagged with that release's version. It names no `container-repository`.
+A repo with a `Dockerfile` also pushes its image in the same release, tagged with that release's version. For Maven,
+`tn-parent`'s `docker` profile builds it as `${docker-image-repository}:${project.version}` and the jar is deployed too;
+for npm, `scripts/build-image.sh` builds it as the repo's name. (The separate `<name>-container` repos are archived: every
+service and web app builds its own image.)
 
 For npm, what `package.json` declares decides: a `verify` script runs first; a `Dockerfile` pushes the image; `"private": true`
 publishes nothing to GitHub Packages and attaches no `.tgz` (a workspace root is private by npm's rule, so there each workspace
-decides). A web app (`verify`, `Dockerfile`, `private`) verifies, builds its image from its own build and pushes it in one release;
-an old container repo (no `verify`, `private`) only builds and pushes its image. `container-repository` is still accepted until
-the web apps have released without it.
+decides). A web app (`verify`, `Dockerfile`, `private`) verifies, builds its image from its own build and pushes it in one release.
 
 ## When a release half-fails
 
