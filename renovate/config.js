@@ -29,6 +29,7 @@ module.exports = {
     'nickersan/okayat-moderation-service',
     'nickersan/okayat-profile-service',
     'nickersan/okayat-session-service',
+    'nickersan/okayat-conversation-service',
     'nickersan/okayat-event',
     'nickersan/okayat-message-format',
     'nickersan/okayat-event-routing-service',
